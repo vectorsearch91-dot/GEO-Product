@@ -4,8 +4,8 @@ from sqlalchemy.orm import sessionmaker
 from core.config import settings
 import re
 
-# Handle Railway PostgreSQL URL format
-database_url = settings.DATABASE_URL
+# Handle Railway PostgreSQL URL format and empty cases
+database_url = settings.DATABASE_URL.strip() if settings.DATABASE_URL else "sqlite:///./sql_app.db"
 if database_url.startswith("postgres://"):
     database_url = database_url.replace("postgres://", "postgresql://", 1)
 
