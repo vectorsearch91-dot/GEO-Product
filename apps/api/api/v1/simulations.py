@@ -16,6 +16,7 @@ router = APIRouter(prefix="/simulations", tags=["simulations"])
 class RunSimulationRequest(BaseModel):
     product_id: str
     target_llms: Optional[List[str]] = None
+    queries_per_persona: Optional[int] = 4  # 1=Quick, 2=Standard, 4=Full
 
 
 @router.post("/")
@@ -29,6 +30,7 @@ def start_simulation(
         raise HTTPException(status_code=404, detail="Product not found")
 
     target_llms = request.target_llms or list(settings.LLM_ENGINES.keys())
+    queries_per_persona = max(1, min(4, request.queries_per_persona or 4))
 
     run = SimulationRun(
         id=str(uuid4()),
@@ -61,6 +63,7 @@ def start_simulation(
             target_demographics=target_demographics,
             personas=personas,
             target_llms=target_llms,
+            queries_per_persona=queries_per_persona,
             db_session_factory=SessionLocal,
             result_model=SimulationResult,
             run_model=SimulationRun

@@ -48,7 +48,7 @@ QUERY_TEMPLATES = {
 }
 
 
-def generate_queries_for_product(product_data: dict, personas: list) -> List[dict]:
+def generate_queries_for_product(product_data: dict, personas: list, queries_per_persona: int = 4) -> List[dict]:
     """Generate simulation queries based on product metadata and personas."""
     queries = []
     ingredients = product_data.get("ingredients", [])
@@ -57,7 +57,9 @@ def generate_queries_for_product(product_data: dict, personas: list) -> List[dic
     skin_types = product_data.get("target_demographics", {}).get("skin_types", ["combination"])
     primary_concern = concerns[0] if concerns else "acne"
     skin_type = skin_types[0] if skin_types else "combination"
-    intents = list(QUERY_TEMPLATES.keys())
+
+    # Limit intents to queries_per_persona (max 4)
+    intents = list(QUERY_TEMPLATES.keys())[:queries_per_persona]
 
     for persona in personas:
         for idx, intent in enumerate(intents):
@@ -196,9 +198,10 @@ def run_full_simulation(
     target_demographics: dict,
     personas: list,
     target_llms: list,
-    db_session_factory,
-    result_model,
-    run_model
+    queries_per_persona: int = 4,
+    db_session_factory=None,
+    result_model=None,
+    run_model=None
 ):
     """Execute the full simulation in a background thread using ThreadPoolExecutor."""
     db = db_session_factory()
@@ -206,7 +209,8 @@ def run_full_simulation(
         queries = generate_queries_for_product(
             {"ingredients": ingredients, "key_benefits": key_benefits,
              "target_demographics": target_demographics},
-            personas
+            personas,
+            queries_per_persona=queries_per_persona
         )
 
         total_tasks = len(queries) * len(target_llms)

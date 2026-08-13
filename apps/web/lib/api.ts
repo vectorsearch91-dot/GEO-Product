@@ -32,10 +32,10 @@ export const api = {
   deleteProduct: (id: string) =>
     request(`/api/v1/products/${id}`, { method: 'DELETE' }),
 
-  startSimulation: (productId: string, targetLlms?: string[]) =>
+  startSimulation: (productId: string, targetLlms?: string[], queriesPerPersona?: number) =>
     request('/api/v1/simulations/', {
       method: 'POST',
-      body: JSON.stringify({ product_id: productId, target_llms: targetLlms }),
+      body: JSON.stringify({ product_id: productId, target_llms: targetLlms, queries_per_persona: queriesPerPersona }),
     }),
 
   getSimulationStatus: (runId: string) => request(`/api/v1/simulations/${runId}`),

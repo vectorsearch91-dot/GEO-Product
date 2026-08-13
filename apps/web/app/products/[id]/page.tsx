@@ -11,6 +11,19 @@ const LLM_COLORS: Record<string, string> = {
   'Perplexity': '#f59e0b',
 }
 
+const LLM_OPTIONS = [
+  { key: 'chatgpt', label: 'ChatGPT', color: '#10b981', icon: '🤖' },
+  { key: 'gemini', label: 'Gemini', color: '#3b82f6', icon: '✨' },
+  { key: 'claude', label: 'Claude', color: '#8b5cf6', icon: '🧠' },
+  { key: 'perplexity', label: 'Perplexity', color: '#f59e0b', icon: '🔍' },
+]
+
+const QUERY_PRESETS = [
+  { label: 'Quick', desc: '1 query/persona', queries: 1, totalFn: (llms: number, personas: number) => llms * personas * 1 },
+  { label: 'Standard', desc: '2 queries/persona', queries: 2, totalFn: (llms: number, personas: number) => llms * personas * 2 },
+  { label: 'Full', desc: '4 queries/persona', queries: 4, totalFn: (llms: number, personas: number) => llms * personas * 4 },
+]
+
 export default function ProductDetailPage() {
   const params = useParams()
   const router = useRouter()
@@ -24,6 +37,9 @@ export default function ProductDetailPage() {
   const [generatingPlan, setGeneratingPlan] = useState(false)
   const [activeTab, setActiveTab] = useState<'overview' | 'competitors' | 'sources' | 'action'>('overview')
   const [loading, setLoading] = useState(true)
+  const [showAuditConfig, setShowAuditConfig] = useState(false)
+  const [selectedLlms, setSelectedLlms] = useState<string[]>(['chatgpt', 'gemini', 'claude', 'perplexity'])
+  const [queryPreset, setQueryPreset] = useState(1) // index into QUERY_PRESETS
 
   const loadData = useCallback(async () => {
     try {
@@ -61,15 +77,29 @@ export default function ProductDetailPage() {
   }, [simulation, isRunning, loadData])
 
   const startAudit = async () => {
+    if (selectedLlms.length === 0) { alert('Please select at least one LLM engine.'); return }
     setIsRunning(true)
+    setShowAuditConfig(false)
     try {
-      const result = await api.startSimulation(productId)
+      const preset = QUERY_PRESETS[queryPreset]
+      const result = await api.startSimulation(productId, selectedLlms, preset.queries)
       setSimulation(result)
     } catch (e: any) {
       setIsRunning(false)
       alert('Failed to start audit: ' + e.message)
     }
   }
+
+  const toggleLlm = (key: string) => {
+    setSelectedLlms(prev =>
+      prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]
+    )
+  }
+
+  const estimatedQueries = QUERY_PRESETS[queryPreset].totalFn(
+    selectedLlms.length,
+    product?.personas?.length || 3
+  )
 
   const generatePlan = async () => {
     setGeneratingPlan(true)
@@ -120,29 +150,93 @@ export default function ProductDetailPage() {
               {generatingPlan ? '⏳ Generating...' : '⚡ Generate Action Plan'}
             </button>
           )}
-          <button
-            onClick={startAudit}
-            disabled={isRunning}
-            className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50"
-          >
-            {isRunning ? '🔄 Running Audit...' : '🚀 Run New Audit'}
-          </button>
+          {!isRunning && (
+            <button
+              onClick={() => setShowAuditConfig(true)}
+              className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
+            >
+              🚀 Run New Audit
+            </button>
+          )}
+          {isRunning && (
+            <button disabled className="bg-blue-400 text-white px-4 py-2 rounded-lg text-sm font-semibold opacity-70 cursor-not-allowed">
+              🔄 Running Audit...
+            </button>
+          )}
         </div>
       </nav>
+
+      {/* Audit Config Modal */}
+      {showAuditConfig && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="text-lg font-bold text-gray-900">Configure Audit</h3>
+              <button onClick={() => setShowAuditConfig(false)} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+            </div>
+
+            <div className="mb-5">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">LLM Engines to Query</p>
+              <div className="grid grid-cols-2 gap-2">
+                {LLM_OPTIONS.map(llm => (
+                  <button key={llm.key} onClick={() => toggleLlm(llm.key)}
+                    className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm font-semibold transition-all ${
+                      selectedLlms.includes(llm.key)
+                        ? 'border-blue-500 bg-blue-50 text-blue-700'
+                        : 'border-gray-200 text-gray-500 hover:border-gray-300'
+                    }`}>
+                    <span>{llm.icon}</span>
+                    <span>{llm.label}</span>
+                    {selectedLlms.includes(llm.key) && <span className="ml-auto text-blue-500">✓</span>}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="mb-6">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Queries per Persona</p>
+              <div className="grid grid-cols-3 gap-2">
+                {QUERY_PRESETS.map((preset, idx) => (
+                  <button key={preset.label} onClick={() => setQueryPreset(idx)}
+                    className={`flex flex-col items-center py-3 px-2 rounded-xl border text-sm font-semibold transition-all ${
+                      queryPreset === idx ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-500 hover:border-gray-300'
+                    }`}>
+                    <span className="font-bold text-base">{preset.label}</span>
+                    <span className="text-xs mt-0.5 font-normal">{preset.desc}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="bg-gray-50 rounded-xl p-3 mb-5 flex items-center justify-between">
+              <span className="text-sm text-gray-600">Estimated API calls</span>
+              <span className="text-sm font-bold text-gray-900">{estimatedQueries} queries</span>
+            </div>
+
+            <div className="flex gap-3">
+              <button onClick={() => setShowAuditConfig(false)}
+                className="flex-1 py-3 rounded-xl border border-gray-300 text-gray-700 font-semibold hover:bg-gray-50 transition-colors text-sm">
+                Cancel
+              </button>
+              <button onClick={startAudit} disabled={selectedLlms.length === 0}
+                className="flex-1 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold transition-colors text-sm disabled:opacity-50">
+                Start Audit →
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Simulation progress bar */}
       {isRunning && simulation && (
         <div className="bg-blue-600 px-8 py-3">
           <div className="max-w-6xl mx-auto">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-white text-sm font-medium">🤖 Running AI audit across 4 LLM engines...</span>
+              <span className="text-white text-sm font-medium">🤖 Running AI audit across {selectedLlms.length} LLM engine(s)...</span>
               <span className="text-white/80 text-sm">{simulation.completed_queries || 0} / {simulation.total_queries || '...'} queries</span>
             </div>
             <div className="w-full bg-blue-800 rounded-full h-2">
-              <div
-                className="bg-white rounded-full h-2 transition-all duration-500"
-                style={{ width: `${simulation.progress || 0}%` }}
-              />
+              <div className="bg-white rounded-full h-2 transition-all duration-500" style={{ width: `${simulation.progress || 0}%` }} />
             </div>
           </div>
         </div>
