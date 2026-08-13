@@ -88,7 +88,7 @@ async def generate_personas_with_gemini(
     headers = {
         "Authorization": f"Bearer {settings.OPENROUTER_API_KEY}",
         "HTTP-Referer": "https://geoplatform.ai",
-        "X-Title": "GEO Platform — Persona Generation",
+        "X-Title": "GEO Platform - Persona Generation",
         "Content-Type": "application/json"
     }
     payload = {

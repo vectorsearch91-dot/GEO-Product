@@ -89,7 +89,7 @@ def generate_questions_sync(
     headers = {
         "Authorization": f"Bearer {api_key}",
         "HTTP-Referer": "https://geoplatform.ai",
-        "X-Title": "GEO Platform — Question Generation",
+        "X-Title": "GEO Platform - Question Generation",
         "Content-Type": "application/json"
     }
     payload = {
@@ -165,7 +165,7 @@ def query_for_recommendations_sync(
     headers = {
         "Authorization": f"Bearer {api_key}",
         "HTTP-Referer": "https://geoplatform.ai",
-        "X-Title": "GEO Platform — Recommendation Query",
+        "X-Title": "GEO Platform - Recommendation Query",
         "Content-Type": "application/json"
     }
     payload = {
