@@ -1,4 +1,4 @@
-from collections import Counter
+from collections import Counter, defaultdict
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -10,7 +10,10 @@ router = APIRouter(prefix="/analytics", tags=["analytics"])
 
 @router.get("/{product_id}")
 def get_product_analytics(product_id: str, db: Session = Depends(get_db)):
-    """Return aggregated GEO analytics for a product's latest completed simulation."""
+    """
+    Aggregated GEO analytics for the latest completed simulation.
+    Overall surfacing score is IMPORTANCE-WEIGHTED across personas.
+    """
     product = db.query(Product).filter(Product.id == product_id).first()
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
@@ -19,7 +22,7 @@ def get_product_analytics(product_id: str, db: Session = Depends(get_db)):
         db.query(SimulationRun)
         .filter(
             SimulationRun.product_id == product_id,
-            SimulationRun.status == "COMPLETED"
+            SimulationRun.status == "COMPLETED",
         )
         .order_by(SimulationRun.created_at.desc())
         .first()
@@ -42,36 +45,69 @@ def get_product_analytics(product_id: str, db: Session = Depends(get_db)):
         return {"product_id": product_id, "has_data": False, "message": "No results found."}
 
     total = len(results)
-    surfaced = [r for r in results if r.is_product_surfaced]
-    overall_score = round(len(surfaced) / total * 100, 1)
 
-    def pct(subset):
-        s = len([r for r in subset if r.is_product_surfaced])
-        return round(s / len(subset) * 100, 1) if subset else 0.0
+    # --- Per-persona scoring (raw) ---
+    persona_groups = defaultdict(list)
+    for r in results:
+        persona_groups[r.persona_name].append(r)
+
+    persona_stats = {}
+    for pname, pres in persona_groups.items():
+        raw_score = len([r for r in pres if r.is_product_surfaced]) / len(pres) * 100
+        # Use importance_weight stored on the result row
+        weight = pres[0].persona_importance_weight or 33.0
+        persona_stats[pname] = {
+            "score": round(raw_score, 1),
+            "importance_weight": weight,
+            "total_queries": len(pres),
+            "surfaced_count": len([r for r in pres if r.is_product_surfaced]),
+        }
+
+    # --- Importance-weighted overall score ---
+    total_weight = sum(v["importance_weight"] for v in persona_stats.values())
+    if total_weight > 0:
+        weighted_score = sum(
+            v["score"] * v["importance_weight"] / total_weight
+            for v in persona_stats.values()
+        )
+    else:
+        surfaced = len([r for r in results if r.is_product_surfaced])
+        weighted_score = surfaced / total * 100
+
+    overall_score = round(weighted_score, 1)
+
+    # --- By LLM ---
+    llm_groups = defaultdict(list)
+    for r in results:
+        llm_groups[r.llm_display_name].append(r)
 
     by_llm = {
-        name: pct([r for r in results if r.llm_display_name == name])
-        for name in set(r.llm_display_name for r in results)
-    }
-    by_persona = {
-        name: pct([r for r in results if r.persona_name == name])
-        for name in set(r.persona_name for r in results)
-    }
-    by_intent = {
-        intent: pct([r for r in results if r.intent_category == intent])
-        for intent in set(r.intent_category for r in results)
+        name: round(len([r for r in res if r.is_product_surfaced]) / len(res) * 100, 1)
+        for name, res in llm_groups.items()
     }
 
+    # --- By persona (simplified for chart) ---
+    by_persona = {
+        pname: v["score"]
+        for pname, v in persona_stats.items()
+    }
+
+    # --- Competitor share of voice ---
     comp_counter: Counter = Counter()
     for r in results:
         for c in (r.competitors_surfaced or []):
             comp_counter[c] += 1
 
     top_competitors = [
-        {"name": name, "count": count, "share_of_voice": round(count / total * 100, 1)}
-        for name, count in comp_counter.most_common(6)
+        {
+            "name": name,
+            "count": count,
+            "share_of_voice": round(count / total * 100, 1),
+        }
+        for name, count in comp_counter.most_common(8)
     ]
 
+    # --- Citation domains ---
     domain_counter: Counter = Counter()
     for r in results:
         for d in (r.cited_domains or []):
@@ -86,12 +122,12 @@ def get_product_analytics(product_id: str, db: Session = Depends(get_db)):
         "product_id": product_id,
         "has_data": True,
         "simulation_run_id": latest_run.id,
-        "overall_surfacing_score": overall_score,
+        "overall_surfacing_score": overall_score,    # importance-weighted
         "total_simulations": total,
-        "surfaced_count": len(surfaced),
+        "surfaced_count": len([r for r in results if r.is_product_surfaced]),
         "by_llm": by_llm,
         "by_persona": by_persona,
-        "by_intent": by_intent,
+        "persona_details": persona_stats,            # includes weight + raw score per persona
         "top_competitors": top_competitors,
         "top_cited_domains": top_cited_domains,
     }

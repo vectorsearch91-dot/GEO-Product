@@ -1,1 +1,1 @@
-from models.models import Organization, Product, SimulationRun, SimulationResult
+from models.models import Organization, Product, SimulationRun, SimulationResult, SimulationLog

@@ -58,14 +58,39 @@ export default function NewProductPage() {
     setError('')
     if (useManual) {
       if (!manualName || !manualBrand) { setError('Product name and brand are required'); return }
-      const data = {
-        product_name: manualName, brand_name: manualBrand, category: manualCategory,
-        primary_description: `${manualName} by ${manualBrand}`,
-        ingredients: [], key_benefits: [],
-        target_demographics: { age_range: '25-40', skin_types: ['all'], primary_concerns: ['general skincare'], climate_fit: 'any' },
-        pricing_tier: 'Premium', personas: DEFAULT_PERSONAS,
+      setStep('analyzing')
+      try {
+        const result = await api.generatePersonas({
+          product_name: manualName,
+          brand_name: manualBrand,
+          category: manualCategory,
+          ingredients: [],
+          key_benefits: [],
+        })
+        const data = {
+          product_name: manualName,
+          brand_name: manualBrand,
+          category: manualCategory,
+          primary_description: `${manualName} by ${manualBrand}`,
+          ingredients: [], key_benefits: [],
+          target_demographics: {},
+          pricing_tier: 'Premium',
+          personas: result.personas || DEFAULT_PERSONAS,
+        }
+        setEditedData(data)
+        setStep('review')
+      } catch {
+        // Fallback to defaults on Gemini failure
+        const data = {
+          product_name: manualName, brand_name: manualBrand, category: manualCategory,
+          primary_description: `${manualName} by ${manualBrand}`,
+          ingredients: [], key_benefits: [], target_demographics: {},
+          pricing_tier: 'Premium', personas: DEFAULT_PERSONAS,
+        }
+        setEditedData(data)
+        setStep('review')
       }
-      setEditedData(data); setStep('review'); return
+      return
     }
     if (allImages.filter(Boolean).length === 0) {
       setError('Please upload at least one product image or switch to manual entry'); return
@@ -365,7 +390,14 @@ export default function NewProductPage() {
                       >
                         <div className="w-9 h-9 bg-blue-100 rounded-xl flex items-center justify-center text-base flex-shrink-0">👤</div>
                         <div className="flex-1 min-w-0">
-                          <div className="font-semibold text-gray-900 text-sm">{p.name}</div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold text-gray-900 text-sm">{p.name}</span>
+                            {p.importance_weight && (
+                              <span className="bg-blue-600 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                                {p.importance_weight}%
+                              </span>
+                            )}
+                          </div>
                           <div className="text-xs text-gray-500">{p.age_range} · {p.location} · {p.occupation}</div>
                         </div>
                         <div className="flex items-center gap-2">

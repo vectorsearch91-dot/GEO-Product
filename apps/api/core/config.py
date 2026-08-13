@@ -17,9 +17,10 @@ class Settings:
         "perplexity": {"model": "perplexity/llama-3.1-sonar-small-128k-online", "display_name": "Perplexity"},
     }
     VISION_MODEL: str = "openai/gpt-4o"
+    PERSONA_MODEL: str = "google/gemini-flash-1.5"   # Gemini for persona generation
     SEEDING_MODEL: str = "openai/gpt-4o-mini"
 
-    QUERIES_PER_PERSONA: int = 4
+    QUERIES_PER_PERSONA: int = 2   # default — user can override
     MAX_SIMULATION_WORKERS: int = 6
 
 @lru_cache()

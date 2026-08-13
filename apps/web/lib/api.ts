@@ -1,4 +1,4 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000').replace(/\/$/, '')
 
 async function request(path: string, options: RequestInit = {}) {
   const response = await fetch(`${API_BASE}${path}`, {
@@ -13,10 +13,24 @@ async function request(path: string, options: RequestInit = {}) {
 }
 
 export const api = {
+  // Product onboarding
   analyzeImages: (imageUrls: string[]) =>
     request('/api/v1/products/analyze-images', {
       method: 'POST',
       body: JSON.stringify({ image_urls: imageUrls }),
+    }),
+
+  // Gemini persona generation (called after manual entry or to refresh personas)
+  generatePersonas: (data: {
+    product_name: string
+    brand_name: string
+    category?: string
+    ingredients?: string[]
+    key_benefits?: string[]
+  }) =>
+    request('/api/v1/products/generate-personas', {
+      method: 'POST',
+      body: JSON.stringify(data),
     }),
 
   createProduct: (data: any) =>
@@ -32,13 +46,20 @@ export const api = {
   deleteProduct: (id: string) =>
     request(`/api/v1/products/${id}`, { method: 'DELETE' }),
 
+  // Simulation — each LLM generates its own questions then answers them (India context)
   startSimulation: (productId: string, targetLlms?: string[], queriesPerPersona?: number) =>
     request('/api/v1/simulations/', {
       method: 'POST',
-      body: JSON.stringify({ product_id: productId, target_llms: targetLlms, queries_per_persona: queriesPerPersona }),
+      body: JSON.stringify({
+        product_id: productId,
+        target_llms: targetLlms,
+        queries_per_persona: queriesPerPersona,
+      }),
     }),
 
   getSimulationStatus: (runId: string) => request(`/api/v1/simulations/${runId}`),
+
+  getSimulationLogs: (runId: string) => request(`/api/v1/simulations/${runId}/logs`),
 
   getProductSimulations: (productId: string) =>
     request(`/api/v1/simulations/product/${productId}`),
