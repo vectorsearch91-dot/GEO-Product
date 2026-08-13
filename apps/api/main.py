@@ -14,6 +14,12 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("🚀 Starting GEO Platform API...")
+    try:
+        # Recreate tables to apply schema upgrades (new columns like queries_per_persona, and log tables)
+        Base.metadata.drop_all(bind=engine)
+        logger.info("🗑️ Dropped old tables for schema sync")
+    except Exception as e:
+        logger.warning(f"Could not drop tables: {e}")
     Base.metadata.create_all(bind=engine)
     logger.info("✅ Database tables created/verified")
     yield
